@@ -232,6 +232,7 @@ func (dc *Context) rasterize(v0, v1, v2 Vertex, s0, s1, s2 Vector) RasterizeInfo
 			lock := &dc.locks[(x+y)&255]
 			lock.Lock()
 			if dc.ReadDepth && bz > dc.DepthBuffer[i] { // safe w/out lock?
+				lock.Unlock()
 				continue
 			}
 			lock.Unlock()

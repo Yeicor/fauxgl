@@ -234,7 +234,6 @@ func (dc *Context) rasterize(v0, v1, v2 Vertex, s0, s1, s2 Vector) RasterizeInfo
 			if dc.ReadDepth && bz > dc.DepthBuffer[i] { // safe w/out lock?
 				continue
 			}
-			lock.Unlock()
 			// perspective-correct interpolation of vertex data
 			b := VectorW{b0 * r0, b1 * r1, b2 * r2, 0}
 			b.W = 1 / (b.X + b.Y + b.Z)
@@ -245,7 +244,6 @@ func (dc *Context) rasterize(v0, v1, v2 Vertex, s0, s1, s2 Vector) RasterizeInfo
 				continue
 			}
 			// update buffers atomically
-			lock.Lock()
 			// check depth buffer again
 			if bz <= dc.DepthBuffer[i] || !dc.ReadDepth {
 				info.UpdatedPixels++

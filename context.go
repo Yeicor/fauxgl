@@ -392,51 +392,73 @@ func (dc *Context) DrawTriangle(t *Triangle) RasterizeInfo {
 }
 
 func (dc *Context) DrawLines(lines []*Line) RasterizeInfo {
-	wn := runtime.NumCPU()
-	ch := make(chan RasterizeInfo, wn)
-	for wi := 0; wi < wn; wi++ {
-		go func(wi int) {
-			var result RasterizeInfo
-			for i, l := range lines {
-				if i%wn == wi {
-					info := dc.DrawLine(l)
-					result = result.Add(info)
-				}
-			}
-			ch <- result
-		}(wi)
-	}
+	return dc.DrawLinesWorkers(lines, runtime.NumCPU())
+}
+
+func (dc *Context) DrawLinesWorkers(lines []*Line, workers int) RasterizeInfo {
 	var result RasterizeInfo
-	for wi := 0; wi < wn; wi++ {
-		result = result.Add(<-ch)
+	drawLines := func(wi int) (result RasterizeInfo) {
+		for i, l := range lines {
+			if i%workers == wi {
+				info := dc.DrawLine(l)
+				result = result.Add(info)
+			}
+		}
+		return
+	}
+	if workers > 1 { // Parallelize using goroutines
+		ch := make(chan RasterizeInfo, workers)
+		for wi := 0; wi < workers; wi++ {
+			go func(wi int) {
+				ch <- drawLines(wi)
+			}(wi)
+		}
+		for wi := 0; wi < workers; wi++ {
+			result = result.Add(<-ch)
+		}
+	} else { // Avoid spawning goroutines in singlethread mode
+		result = drawLines(0)
 	}
 	return result
 }
 
 func (dc *Context) DrawTriangles(triangles []*Triangle) RasterizeInfo {
-	wn := runtime.NumCPU()
-	ch := make(chan RasterizeInfo, wn)
-	for wi := 0; wi < wn; wi++ {
-		go func(wi int) {
-			var result RasterizeInfo
-			for i, t := range triangles {
-				if i%wn == wi {
-					info := dc.DrawTriangle(t)
-					result = result.Add(info)
-				}
+	return dc.DrawTrianglesWorkers(triangles, runtime.NumCPU())
+}
+
+func (dc *Context) DrawTrianglesWorkers(triangles []*Triangle, workers int) RasterizeInfo {
+	drawTriangles := func(wi int) (result RasterizeInfo) {
+		for i, t := range triangles {
+			if i%workers == wi {
+				info := dc.DrawTriangle(t)
+				result = result.Add(info)
 			}
-			ch <- result
-		}(wi)
+		}
+		return
 	}
 	var result RasterizeInfo
-	for wi := 0; wi < wn; wi++ {
-		result = result.Add(<-ch)
+	if workers > 1 { // Parallelize using goroutines
+		ch := make(chan RasterizeInfo, workers)
+		for wi := 0; wi < workers; wi++ {
+			go func(wi int) {
+				ch <- drawTriangles(wi)
+			}(wi)
+		}
+		for wi := 0; wi < workers; wi++ {
+			result = result.Add(<-ch)
+		}
+	} else { // Avoid spawning goroutines in singlethread mode
+		result = drawTriangles(0)
 	}
 	return result
 }
 
 func (dc *Context) DrawMesh(mesh *Mesh) RasterizeInfo {
-	info1 := dc.DrawTriangles(mesh.Triangles)
-	info2 := dc.DrawLines(mesh.Lines)
+	return dc.DrawMeshWorkers(mesh, runtime.NumCPU())
+}
+
+func (dc *Context) DrawMeshWorkers(mesh *Mesh, workers int) RasterizeInfo {
+	info1 := dc.DrawTrianglesWorkers(mesh.Triangles, workers)
+	info2 := dc.DrawLinesWorkers(mesh.Lines, workers)
 	return info1.Add(info2)
 }
